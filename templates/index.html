@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Subasta Futbolera</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@300;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Subasta Futbolera</h1>
+    </header>
+    <div id="notifications" aria-live="polite"></div>
+
+    <section class="setup">
+      <div>
+        <label>Participantes (separados por coma):</label>
+        <input id="participants" placeholder="Lucas,Marcos,Jose" />
+      </div>
+      <div>
+        <label>Formación:</label>
+        <select id="formation">
+          <option>4-3-3 defensivo</option>
+          <option>4-3-3 ofensivo</option>
+          <option>4-4-2 clásico</option>
+          <option>4-2-3-1 moderno</option>
+        </select>
+      </div>
+      <button id="startBtn">Iniciar Subasta</button>
+    </section>
+
+    <main class="auction">
+      <div class="left">
+        <div class="card silhouette-card">
+          <img src="/static/images/silueta.webp" alt="silueta" class="silhouette">
+          <div class="pitch">
+            <div class="mistery-tag">JUGADOR MISTERIOSO</div>
+            <div class="player-info">
+              <div id="pos">POS: --</div>
+              <div id="nac">Nacionalidad: --</div>
+              <div id="price">Precio: -- M</div>
+              <div id="plaza_desc">Plaza: --</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <input id="participantName" placeholder="Tu nombre (exacto)" />
+          <input id="amount" placeholder="Monto (ej: 150)" type="number" />
+          <button id="payBtn">Pagar</button>
+          <button id="passBtn">Paso</button>
+        </div>
+      </div>
+
+      <aside class="right">
+        <h3>Balances</h3>
+        <div id="balances"></div>
+
+        <h3>Planteles</h3>
+        <div id="planteles"></div>
+
+        <div id="remaining"></div>
+      </aside>
+    </main>
+
+    <footer>
+      <small>Interfaz creada sobre tu script original.</small>
+    </footer>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
