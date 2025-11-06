@@ -1,13 +1,67 @@
 let started = false;
 
+// Normaliza un nombre de jugador a un filename tipo: "aaron_wan_bissaka"
+function normalizePlayerName(name){
+  if(!name) return '';
+  // trim, lowercase, remove diacritics
+  let s = name.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // replace any non-alphanumeric (letters/numbers) with underscore
+  s = s.replace(/[^a-z0-9]+/g, '_');
+  // collapse multiple underscores
+  s = s.replace(/_+/g, '_');
+  // remove leading/trailing underscores
+  s = s.replace(/^_|_$/g, '');
+  return s;
+}
+
+// Genera varias URLs candidatas donde puede estar la imagen en el repo
+function getPlayerImageCandidates(playerName){
+  const silhouette = 'https://raw.githubusercontent.com/ManriquePeralta/SubastaFutbolera/master/static/images/silueta.webp';
+  if(!playerName) return [silhouette];
+  const base = normalizePlayerName(playerName);
+  if(!base) return [silhouette];
+
+  // posibles ubicaciones en el repo (user provided example includes refs/heads/master)
+  const candidates = [
+    `https://raw.githubusercontent.com/ManriquePeralta/SubastaFutbolera/refs/heads/master/jugadores/${base}.jpg`,
+    `https://raw.githubusercontent.com/ManriquePeralta/SubastaFutbolera/master/jugadores/${base}.jpg`,
+    `https://raw.githubusercontent.com/ManriquePeralta/SubastaFutbolera/master/static/images/jugadores/${base}.jpg`,
+    `https://raw.githubusercontent.com/ManriquePeralta/SubastaFutbolera/master/static/images/jugadores/${base}.webp`,
+  ];
+  // always end with silhouette fallback
+  candidates.push(silhouette);
+  return candidates;
+}
+
+// Asigna de forma resiliente la imagen al elemento <img>. Prueba varias URLs y
+// si ninguna carga correctamente deja la silueta.
+function setPlayerImage(imgEl, playerName){
+  const urls = getPlayerImageCandidates(playerName);
+  let idx = 0;
+  function tryNext(){
+    if(idx >= urls.length){
+      // nothing worked, ensure silhouette
+      imgEl.src = urls[urls.length-1];
+      return;
+    }
+    const url = urls[idx++];
+    // create a temporary Image to test loading
+    const t = new Image();
+    t.onload = function(){ imgEl.src = url; };
+    t.onerror = function(){ tryNext(); };
+    t.src = url;
+  }
+  tryNext();
+}
+
 function showNotification(text, kind = 'info'){
-  // kind: info | success | error
-  const container = document.getElementById('notifications');
-  const el = document.createElement('div');
-  el.className = 'notification ' + kind;
-  el.textContent = text;
-  container.prepend(el);
-  setTimeout(()=>{ el.style.opacity = '0'; setTimeout(()=>el.remove(),600); }, 5000);
+    // kind: info | success | error
+    const container = document.getElementById('notifications');
+    const el = document.createElement('div');
+    el.className = 'notification ' + kind;
+    el.textContent = text;
+    container.prepend(el);
+    setTimeout(()=>{ el.style.opacity = '0'; setTimeout(()=>el.remove(),600); }, 5000);
 }
 
 document.getElementById("startBtn").addEventListener("click", async ()=>{
@@ -63,8 +117,20 @@ document.getElementById("passBtn").addEventListener("click", async ()=>{
   const j = await r.json();
   if(!j.ok){ showNotification("Error: " + (j.error||''), 'error'); return; }
   // show who was the passed player
-  if(j.Jugador){ showNotification(`Se pasó a: ${j.Jugador}`, 'info'); }
-  loadCandidate(); loadStatus();
+  if(j.Jugador){ 
+    showNotification(`Se pasó a: ${j.Jugador}`, 'info');
+    // Mostrar la imagen del jugador brevemente
+  const img = document.querySelector('.silhouette');
+  setPlayerImage(img, j.Jugador);
+    setTimeout(() => {
+  setPlayerImage(img); // Volver a la silueta
+      loadCandidate();
+      loadStatus();
+    }, 3000); // Mostrar por 3 segundos
+  } else {
+    loadCandidate();
+    loadStatus();
+  }
 });
 
 document.getElementById("payBtn").addEventListener("click", async ()=>{
@@ -77,7 +143,18 @@ document.getElementById("payBtn").addEventListener("click", async ()=>{
   if(!j.ok){ showNotification("Error: " + (j.error||''), 'error'); return; }
   showNotification(j.msg, 'success');
   document.getElementById("amount").value = "";
-  loadCandidate(); loadStatus();
+  
+  // Mostrar la imagen del jugador comprado
+  const playerName = j.msg.split(" compró ")[1].split(" por ")[0];
+  const img = document.querySelector('.silhouette');
+  setPlayerImage(img, playerName);
+  
+  // Esperar un momento antes de cargar el siguiente
+  setTimeout(() => {
+  setPlayerImage(img); // Volver a la silueta
+    loadCandidate();
+    loadStatus();
+  }, 2000); // Mostrar por 2 segundos
 });
 
 async function renderPlanteles(){
@@ -93,22 +170,55 @@ async function renderPlanteles(){
     const map = {};
     for(const pl of data.plantel){ map[pl.Posicion] = map[pl.Posicion] || []; map[pl.Posicion].push(pl.Jugador); }
 
-    const rowDef = document.createElement('div'); rowDef.className='row defenders';
-    // defenders: DFD, DFC, DFI
-    ['DFD','DFC','DFI'].forEach(k=>{ const cell = document.createElement('div'); cell.className='cell'; cell.textContent = (map[k]||[]).join(' | '); rowDef.appendChild(cell); });
-    wrap.appendChild(rowDef);
+    // create formation visual
+    const formation = document.createElement('div'); formation.className = 'formation';
 
-    const rowMid = document.createElement('div'); rowMid.className='row midfield';
-    ['MCD','MC','MCO'].forEach(k=>{ const cell = document.createElement('div'); cell.className='cell'; cell.textContent = (map[k]||[]).join(' | '); rowMid.appendChild(cell); });
-    wrap.appendChild(rowMid);
+    // Forwards (ED, DC, EI) - shown as top line
+    const fwdLine = document.createElement('div'); fwdLine.className='line forwards';
+    ['ED','DC','EI'].forEach(k=>{
+      const players = map[k] || [];
+      if(players.length === 0){
+        // placeholder empty card
+        const pc = document.createElement('div'); pc.className='player-card'; pc.innerHTML = '<div class="player-avatar"></div><div class="player-name">-</div>'; fwdLine.appendChild(pc);
+      } else {
+        players.forEach(name=>{
+          const pc = document.createElement('div'); pc.className='player-card';
+          const img = document.createElement('img'); img.className='player-avatar'; img.alt = name;
+          setPlayerImage(img, name);
+          const nm = document.createElement('div'); nm.className='player-name'; nm.textContent = name;
+          pc.appendChild(img); pc.appendChild(nm);
+          fwdLine.appendChild(pc);
+        })
+      }
+    });
+    formation.appendChild(fwdLine);
 
-    const rowFwd = document.createElement('div'); rowFwd.className='row forwards';
-    ['ED','EI','DC'].forEach(k=>{ const cell = document.createElement('div'); cell.className='cell'; cell.textContent = (map[k]||[]).join(' | '); rowFwd.appendChild(cell); });
-    wrap.appendChild(rowFwd);
+    // Midfield (MCD, MC, MCO)
+    const midLine = document.createElement('div'); midLine.className='line midfield';
+    ['MCD','MC','MCO'].forEach(k=>{
+      const players = map[k] || [];
+      if(players.length === 0){ const pc = document.createElement('div'); pc.className='player-card'; pc.innerHTML = '<div class="player-avatar"></div><div class="player-name">-</div>'; midLine.appendChild(pc); }
+      else { players.forEach(name=>{ const pc = document.createElement('div'); pc.className='player-card'; const img = document.createElement('img'); img.className='player-avatar'; img.alt = name; setPlayerImage(img, name); const nm = document.createElement('div'); nm.className='player-name'; nm.textContent = name; pc.appendChild(img); pc.appendChild(nm); midLine.appendChild(pc); }) }
+    });
+    formation.appendChild(midLine);
 
-    const gk = document.createElement('div'); gk.className='gk'; gk.textContent = (map['PO']||[]).join(' | ');
-    wrap.appendChild(gk);
+    // Defense (DFD, DFC, DFI)
+    const defLine = document.createElement('div'); defLine.className='line defense';
+    ['DFD','DFC','DFI'].forEach(k=>{
+      const players = map[k] || [];
+      if(players.length === 0){ const pc = document.createElement('div'); pc.className='player-card'; pc.innerHTML = '<div class="player-avatar"></div><div class="player-name">-</div>'; defLine.appendChild(pc); }
+      else { players.forEach(name=>{ const pc = document.createElement('div'); pc.className='player-card'; const img = document.createElement('img'); img.className='player-avatar'; img.alt = name; setPlayerImage(img, name); const nm = document.createElement('div'); nm.className='player-name'; nm.textContent = name; pc.appendChild(img); pc.appendChild(nm); defLine.appendChild(pc); }) }
+    });
+    formation.appendChild(defLine);
 
+    // Goalkeeper
+    const gkLine = document.createElement('div'); gkLine.className='line gkline';
+    const gks = map['PO'] || [];
+    if(gks.length === 0){ const pc = document.createElement('div'); pc.className='player-card'; pc.innerHTML = '<div class="player-avatar"></div><div class="player-name">-</div>'; gkLine.appendChild(pc); }
+    else { gks.forEach(name=>{ const pc = document.createElement('div'); pc.className='player-card'; const img = document.createElement('img'); img.className='player-avatar'; img.alt = name; setPlayerImage(img, name); const nm = document.createElement('div'); nm.className='player-name'; nm.textContent = name; pc.appendChild(img); pc.appendChild(nm); gkLine.appendChild(pc); }) }
+    formation.appendChild(gkLine);
+
+    wrap.appendChild(formation);
     plantelesDiv.appendChild(wrap);
   }
   // make planteles visible
