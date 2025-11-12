@@ -179,6 +179,13 @@ formaciones = {
     "3-5-2 ofensivo": {"PO": 1, "DFD": 0, "DFC": 3, "DFI": 0, "MCD": 0, "MC": 2, "MCO": 1, "ED": 1, "EI": 1, "DC": 2}
 }
 
+# ---------- Endpoint: lista de formaciones aleatorias ----------
+@app.route("/formations", methods=["GET"])
+def formations():
+    nombres = list(formaciones.keys())
+    random.shuffle(nombres)
+    return jsonify({"ok": True, "formations": nombres})
+
 # ---------- Estado de la subasta en memoria ----------
 AUCTION = {
     "started": False,
@@ -231,8 +238,14 @@ def start():
     data = request.get_json()
     parts = data.get("participants", [])
     formation = data.get("formation")
-    if not parts or not formation or formation not in formaciones:
-        return jsonify({"ok":False, "error":"participants list and valid formation required"}), 400
+    if not parts:
+        return jsonify({"ok":False, "error":"participants list required"}), 400
+
+    # elegir aleatoria si es RANDOM o None
+    if not formation or formation == "RANDOM":
+        formation = random.choice(list(formaciones.keys()))
+    elif formation not in formaciones:
+        return jsonify({"ok":False, "error":"invalid formation"}), 400
 
     # reset auction
     AUCTION["participants"] = {p:{"presupuesto":1000,"plantel":[]} for p in parts}
@@ -246,15 +259,18 @@ def start():
     AUCTION["total_slots"] = 0
     AUCTION["started"] = True
 
-    # construir candidatos por plaza (igual que tu lógica)
+    # construir candidatos por plaza, evitando repetir el mismo jugador en toda la subasta
     orden_dinamico = [pos for pos in AUCTION["order_positions"] if pos in AUCTION["fm"] and AUCTION["fm"][pos] > 0]
     global_slot = 1
+    used_players = set()
     for pos in orden_dinamico:
         plazas = AUCTION["fm"][pos]
         for slot_index in range(1, plazas+1):
-            disponibles = [j for j in AUCTION["pool_copy"] if j["Posicion"] == pos]
+            # disponibles sin usar aún
+            disponibles = [j for j in AUCTION["pool_copy"] if j["Posicion"] == pos and j["Jugador"] not in used_players]
             random.shuffle(disponibles)
             objetivo = len(parts) + AUCTION["extras_por_slot"]
+            # si faltan, crear vacantes
             while len(disponibles) < objetivo:
                 vac = crear_vacante(pos)
                 min_p, max_p = rangos.get(pos,(30,80))
@@ -263,6 +279,7 @@ def start():
                 AUCTION["pool_copy"].append(vac_dict)
             seleccion = disponibles[:objetivo]
             for cand in seleccion:
+                used_players.add(cand["Jugador"])  # marcar como usado globalmente
                 cand_copy = cand.copy()
                 cand_copy["_pos_slot"] = pos
                 cand_copy["_slot_index"] = slot_index
@@ -276,7 +293,7 @@ def start():
 
     AUCTION["total_slots"] = global_slot - 1
 
-    return jsonify({"ok":True, "total_items": len(AUCTION["jugadores_a_subastar"])})
+    return jsonify({"ok":True, "total_items": len(AUCTION["jugadores_a_subastar"]), "formation": formation})
 
 # ---------- Endpoint: obtener candidato actual ----------
 @app.route("/candidate", methods=["GET"])
@@ -359,6 +376,12 @@ def action():
             break
 
     AUCTION["current_index"] += 1
+
+    # eliminar futuras apariciones del mismo jugador en la subasta
+    restante = AUCTION["jugadores_a_subastar"][AUCTION["current_index"]:]
+    restante_filtrado = [x for x in restante if not (x["Jugador"] == cand["Jugador"] and x["Posicion"] == cand["Posicion"] and x["Nacionalidad"] == cand["Nacionalidad"]) ]
+    AUCTION["jugadores_a_subastar"] = AUCTION["jugadores_a_subastar"][:AUCTION["current_index"]] + restante_filtrado
+
     return jsonify({"ok":True, "msg":f"{participante} compró {cand['Jugador']} por {monto}."})
 
 # ---------- Endpoint: estado (balances y planteles) ----------

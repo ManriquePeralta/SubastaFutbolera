@@ -21,12 +21,9 @@
       </div>
       <div>
         <label>Formación:</label>
-        <select id="formation">
-          <option>4-3-3 defensivo</option>
-          <option>4-3-3 ofensivo</option>
-          <option>4-4-2 clásico</option>
-          <option>4-2-3-1 moderno</option>
-        </select>
+          <select id="formationSelect">
+            <option value="RANDOM">RANDOM</option>
+          </select>
       </div>
       <button id="startBtn">Iniciar Subasta</button>
     </section>
@@ -37,6 +34,7 @@
           <img src="https://raw.githubusercontent.com/ManriquePeralta/SubastaFutbolera/master/static/images/silueta.webp" alt="silueta" class="silhouette">
           <div class="pitch">
             <div class="mistery-tag">JUGADOR MISTERIOSO</div>
+            <div id="chosenFormation" style="font-size:14px;font-weight:600;margin-bottom:6px;color:#cfe">Formación: --</div>
             <div class="player-info">
               <div id="pos">POS: --</div>
               <div id="nac">Nacionalidad: --</div>

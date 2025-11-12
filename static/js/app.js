@@ -64,9 +64,22 @@ function showNotification(text, kind = 'info'){
     setTimeout(()=>{ el.style.opacity = '0'; setTimeout(()=>el.remove(),600); }, 5000);
 }
 
+async function loadFormations(){
+  try{
+    const r = await fetch('/formations');
+    const j = await r.json();
+    if(!j.ok) return;
+    const sel = document.getElementById('formationSelect');
+    // keep RANDOM
+    sel.innerHTML = '<option value="RANDOM">RANDOM</option>';
+    j.formations.forEach(f=>{ const opt=document.createElement('option'); opt.value=f; opt.textContent=f; sel.appendChild(opt); });
+  }catch(e){ /* ignore */ }
+}
+document.addEventListener('DOMContentLoaded', loadFormations);
+
 document.getElementById("startBtn").addEventListener("click", async ()=>{
   const parts = document.getElementById("participants").value.split(",").map(s=>s.trim()).filter(Boolean);
-  const formation = document.getElementById("formation").value;
+  const formation = document.getElementById("formationSelect").value;
   if(parts.length < 1){ showNotification("Ingresa al menos un participante", 'error'); return; }
   const res = await fetch("/start", {
     method:"POST", headers:{"Content-Type":"application/json"},
@@ -75,7 +88,8 @@ document.getElementById("startBtn").addEventListener("click", async ()=>{
   const j = await res.json();
   if(!j.ok){ showNotification("Error: "+ (j.error||''), 'error'); return; }
   started = true;
-  showNotification("Subasta iniciada — " + j.total_items + " candidatos", 'success');
+  showNotification("Subasta iniciada — " + j.total_items + " candidatos (Formación: " + j.formation + ")", 'success');
+  const cf = document.getElementById('chosenFormation'); if(cf) cf.textContent = 'Formación: ' + j.formation;
   // populate participant selector
   const sel = document.getElementById('participantName');
   sel.value = parts[0] || '';
@@ -173,9 +187,9 @@ async function renderPlanteles(){
     // create formation visual
     const formation = document.createElement('div'); formation.className = 'formation';
 
-    // Forwards (ED, DC, EI) - shown as top line
-    const fwdLine = document.createElement('div'); fwdLine.className='line forwards';
-    ['ED','DC','EI'].forEach(k=>{
+  // Forwards left-to-right (EI, DC, ED)
+  const fwdLine = document.createElement('div'); fwdLine.className='line forwards';
+  ['EI','DC','ED'].forEach(k=>{
       const players = map[k] || [];
       if(players.length === 0){
         // placeholder empty card
@@ -202,9 +216,9 @@ async function renderPlanteles(){
     });
     formation.appendChild(midLine);
 
-    // Defense (DFD, DFC, DFI)
-    const defLine = document.createElement('div'); defLine.className='line defense';
-    ['DFD','DFC','DFI'].forEach(k=>{
+  // Defense left-to-right (DFI, DFC, DFD)
+  const defLine = document.createElement('div'); defLine.className='line defense';
+  ['DFI','DFC','DFD'].forEach(k=>{
       const players = map[k] || [];
       if(players.length === 0){ const pc = document.createElement('div'); pc.className='player-card'; pc.innerHTML = '<div class="player-avatar"></div><div class="player-name">-</div>'; defLine.appendChild(pc); }
       else { players.forEach(name=>{ const pc = document.createElement('div'); pc.className='player-card'; const img = document.createElement('img'); img.className='player-avatar'; img.alt = name; setPlayerImage(img, name); const nm = document.createElement('div'); nm.className='player-name'; nm.textContent = name; pc.appendChild(img); pc.appendChild(nm); defLine.appendChild(pc); }) }
